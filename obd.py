@@ -55,7 +55,16 @@ def serGetByteACK():
 	return val
 
 def readingGetString(rType, rVA, rVB):
-	return "UNKNOWN %d: [%d, %d]" % rType, rVA, rVB
+	if rType == 1:
+		return "%d RPM" % (0.2*rVA*rVB)
+	if rType == 5:
+		return "%d C" % (0.1*rVA*(rVB-100))
+	if rType == 7:
+		return "%d km/h" % (0.01*rVA*rVB)
+
+	if rType == 17:
+		return "\"%c%c\"" % (chr(rVA), chr(rVB))
+	return "UNKNOWN %d: [%d, %d]" % (rType, rVA, rVB)
 
 def recvBlock():
 	global blockCounter
@@ -85,22 +94,22 @@ def recvBlock():
 	if(blockTitle == 0x0A):
 		print "Type: NAK"
 	if(blockTitle == 0xE7):
-		print "Type: Group Reading"
+#		print "Type: Group Reading"
 		for n in range(len(data) / 3):
 			readingType = data[n * 3]
 			readingValA = data[n * 3 + 1]
 			readingValB = data[n * 3 + 2]
-i#			print("%d: [%d, %d]\t" % (readingType, readingValA, readingValB))
-			print(readingGetString(readingType, readingValA, readingValB))
+#			print("%d: [%d, %d]\t" % (readingType, readingValA, readingValB))
+			print("\t%s" % readingGetString(readingType, readingValA, readingValB))
 	if(blockTitle == 0xF6):
-		print "Type: ASCII"
+#		print "Type: ASCII"
 		asciiStr = ""
 		for val in data:
 			asciiStr = asciiStr + chr(val & 0x7f)
 #			print(hex(val) + " " + chr(val))
 		print(asciiStr)
 	if(blockTitle == 0xFC):
-		print "Type: Error list"
+#		print "Type: Error list"
 		for n in range(len(data) / 3):
 			errorCode = (data[n * 3] << 8) + data[n * 3 + 1]
 			errorStatus = data[n * 3 + 2]
@@ -151,12 +160,16 @@ def initDevice():
 		sendBlockAck()
 
 	getErrorCodes()
-	readGroup(0)
-	readGroup(1)
-	readGroup(2)
-	readGroup(3)
-	readGroup(4)
-	readGroup(5)
+#	readGroup(0)
+#	readGroup(1)
+#	readGroup(2)
+#	readGroup(3)
+#	readGroup(4)
+#	readGroup(5)
+#	while True:
+#		readGroup(1)
+	for i in range(256):
+		readGroup(i)
 	sendBlockEnd()
 		
 
