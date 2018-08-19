@@ -4,24 +4,25 @@ import serial
 import time
 
 ser = serial.Serial('/dev/ttyUSB0', 10400)
-ser.timeout = 0
-ser.read(100)
+#ser = serial.Serial('/dev/ttyUSB0', 4800)
 
 
 blockCounter = 0
+ecuString = ""
 
 def init5baud(addr):
 	print("Init " + hex(addr) + ": ")
-#	addr = addr << 1
-#	addr += 0x01
-	addr += 0x100
-	for i in range(8):
-		val = (addr << i) & 0x100
-		if val > 0:
+	addr = addr << 1 #Shift for startbit
+	addr = addr | 0x100
+	for i in range(9):
+		val = (addr >> i) & 0x01
+		if val == 0:
 			print "_",
+			ser.break_condition = True
+			addr = addr ^ 0x100
 		else:
 			print "-",
-		ser.break_condition = val > 0
+			ser.break_condition = False
 		time.sleep(1.0/5.0)
 	ser.break_condition = False
 	print
@@ -38,7 +39,7 @@ def serGetByte():
 def serSendByte(val):
 #	print("TX: " + hex(val))
 	ser.write(chr(val))
-	ser.flush()
+	#ser.flush()
 	ser.read()
 
 def serSendByteACK(val):
@@ -61,9 +62,16 @@ def readingGetString(rType, rVA, rVB):
 		return "%d C" % (0.1*rVA*(rVB-100))
 	if rType == 7:
 		return "%d km/h" % (0.01*rVA*rVB)
-
 	if rType == 17:
 		return "\"%c%c\"" % (chr(rVA), chr(rVB))
+	if rType == 19:
+		return "%d l" % (0.01*rVA*rVB)
+	if rType == 36:
+		return "%d km" % ((rVA*256+rVB)*10)
+	if rType == 37:
+		return "Oil Pressure [%d]" % (rVB-30)
+	if rType == 64:
+		return "%d Ohm" % (rVA+rVB)
 	return "UNKNOWN %d: [%d, %d]" % (rType, rVA, rVB)
 
 def recvBlock():
@@ -89,8 +97,8 @@ def recvBlock():
 	
 	if(blockTitle == 0x06):
 		print "Type: End Output"
-	if(blockTitle == 0x09):
-		print "Type: ACK"
+#	if(blockTitle == 0x09):
+#		print "Type: ACK"
 	if(blockTitle == 0x0A):
 		print "Type: NAK"
 	if(blockTitle == 0xE7):
@@ -100,21 +108,37 @@ def recvBlock():
 			readingValA = data[n * 3 + 1]
 			readingValB = data[n * 3 + 2]
 #			print("%d: [%d, %d]\t" % (readingType, readingValA, readingValB))
-			print("\t%s" % readingGetString(readingType, readingValA, readingValB))
+			print("\t%s" % readingGetString(readingType, readingValA, readingValB)),
+		print
 	if(blockTitle == 0xF6):
+		global ecuString
 #		print "Type: ASCII"
 		asciiStr = ""
+		foundZero = False
+		lastIdx = 0
 		for val in data:
+			if(val == 0):
+				foundZero = True
+				break
 			asciiStr = asciiStr + chr(val & 0x7f)
 #			print(hex(val) + " " + chr(val))
-		print(asciiStr)
+			lastIdx += 1
+#		print(asciiStr)
+		ecuString += asciiStr
+		if foundZero:
+			print(ecuString)
+			coding = (data[lastIdx+1] << 8) + data[lastIdx+2]
+			print("Coding: %05d" % (coding >> 1))
 	if(blockTitle == 0xFC):
 #		print "Type: Error list"
 		for n in range(len(data) / 3):
 			errorCode = (data[n * 3] << 8) + data[n * 3 + 1]
 			errorStatus = data[n * 3 + 2]
+			errorFlags = errorStatus >> 6
+			if(errorFlags > 1):
+				errorFlags += 8
 			if(errorCode < 0xffff):
-				print(" - {}: {}".format(errorCode, errorStatus))
+				print(" - %05d: {%02d-%02d}" % (errorCode, errorStatus&0x3F, errorFlags))
 	return blockTitle
 	
 def sendBlock(blockTitle, blockContent = []):
@@ -134,6 +158,7 @@ def sendBlockEnd():
 	sendBlock(0x06)
 
 def getErrorCodes():
+	print("Error Codes:")
 	sendBlock(0x07)
 	while True:
 		bT = recvBlock()
@@ -141,15 +166,23 @@ def getErrorCodes():
 			break
 		sendBlockAck()
 
+lastGrp = -1
+
 def readGroup(grp):
-	print("Reading Group %d" % grp)
+	global lastGrp
+	if grp != lastGrp:
+		print("Reading Group %d" % grp)
+		lastGrp = grp
 	sendBlock(0x29, [grp])
 	bt = recvBlock()
 #	print(hex(bt))
 #	sendBlockAck()
 
 def initDevice():
-	serGetByte() #55
+	syncVal = serGetByte() #55
+	if(syncVal != 0x55):
+		print("syncVal: %x" % syncVal)
+		return
 	serGetByte() #01
 	serGetByte() #8A
 	serSendByte(0x75)
@@ -166,19 +199,21 @@ def initDevice():
 #	readGroup(3)
 #	readGroup(4)
 #	readGroup(5)
+	lT = time.time()
 #	while True:
-#		readGroup(1)
-	for i in range(256):
-		readGroup(i)
+#		readGroup(2)
+#		ct = time.time()
+#		print ct-lT
+#		lT = ct
+#	for i in range(256):
+#		readGroup(i)
 	sendBlockEnd()
 		
 
 init5baud(0x17)
-
 ser.timeout = 0
 ser.read(100)
 ser.timeout = 1
-
 initDevice()
 
 ser.close()
