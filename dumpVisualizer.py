@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 
-f = open("/tmp/uart_00141", "rb")
+import sys
+
+f = open(sys.argv[1], "rb")
 inV = f.read(1)
 
 running = False
