@@ -4,8 +4,28 @@ import serial
 import time
 
 ser = serial.Serial('/dev/ttyUSB0', 10400)
-#ser = serial.Serial('/dev/ttyUSB0', 4800)
+#ser = serial.Serial('/dev/ttyS0', 4800)
 
+deviceId = 0x02
+
+def main():
+	getErrorCodes()
+#	clearErrorCodes()
+#	getErrorCodes()
+	readGroup(0)
+	readGroup(1)
+	readGroup(2)
+	readGroup(3)
+	readGroup(4)
+	readGroup(5)
+	lT = time.time()
+	while True:
+		readGroup(1)
+#		ct = time.time()
+#		print ct-lT
+#		lT = ct
+#	for i in range(256):
+#		readGroup(i)
 
 blockCounter = 0
 ecuString = ""
@@ -57,11 +77,11 @@ def serGetByteACK():
 
 def readingGetString(rType, rVA, rVB):
 	if rType == 1:
-		return "%d RPM" % (0.2*rVA*rVB)
+		return "%04d RPM" % (0.2*rVA*rVB)
 	if rType == 5:
 		return "%d C" % (0.1*rVA*(rVB-100))
 	if rType == 7:
-		return "%d km/h" % (0.01*rVA*rVB)
+		return "%03d km/h" % (0.01*rVA*rVB)
 	if rType == 17:
 		return "\"%c%c\"" % (chr(rVA), chr(rVB))
 	if rType == 19:
@@ -108,7 +128,7 @@ def recvBlock():
 			readingValA = data[n * 3 + 1]
 			readingValB = data[n * 3 + 2]
 #			print("%d: [%d, %d]\t" % (readingType, readingValA, readingValB))
-			print("\t%s" % readingGetString(readingType, readingValA, readingValB)),
+			print("  %s" % readingGetString(readingType, readingValA, readingValB)),
 		print
 	if(blockTitle == 0xF6):
 		global ecuString
@@ -123,7 +143,7 @@ def recvBlock():
 			asciiStr = asciiStr + chr(val & 0x7f)
 #			print(hex(val) + " " + chr(val))
 			lastIdx += 1
-#		print(asciiStr)
+		print(asciiStr)
 		ecuString += asciiStr
 		if foundZero:
 			print(ecuString)
@@ -166,6 +186,15 @@ def getErrorCodes():
 			break
 		sendBlockAck()
 
+def clearErrorCodes():
+	print("Clearing Errors")
+	sendBlock(0x05)
+	bT = recvBlock()
+	if bT != 0x09:
+		print("Error %02x"%bT)
+	else:
+		print("DONE")
+
 lastGrp = -1
 
 def readGroup(grp):
@@ -192,29 +221,14 @@ def initDevice():
 			break
 		sendBlockAck()
 
-	getErrorCodes()
-#	readGroup(0)
-#	readGroup(1)
-#	readGroup(2)
-#	readGroup(3)
-#	readGroup(4)
-#	readGroup(5)
-	lT = time.time()
-#	while True:
-#		readGroup(2)
-#		ct = time.time()
-#		print ct-lT
-#		lT = ct
-#	for i in range(256):
-#		readGroup(i)
-	sendBlockEnd()
 		
-
-init5baud(0x17)
+init5baud(deviceId)
 ser.timeout = 0
 ser.read(100)
 ser.timeout = 1
 initDevice()
+main()
+sendBlockEnd()
 
 ser.close()
 
