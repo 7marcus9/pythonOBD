@@ -143,6 +143,11 @@ def recvBlock():
 			hexStr += " %02x\t" % (data[n])
 		print hexStr
 		if lastGrp == -2: #Basic Settings 000
+			g0rpm = round(data[0] * (1/0.049))
+			
+			g0GAS = round(data[2] * 100 / 255)
+			g0IQ  = round(data[3
+			print " \"%d\t\t%d\t%d" % (g0rpm, g0GAS, g0IQ)
 			print "RPM\tSOI\t% GAS\tIQ\tP BOOST\tP ATM\tColTmp\tIAT\tFuelTmp\tLuft/Hub"
 		
 		if lastGrp == 190:
