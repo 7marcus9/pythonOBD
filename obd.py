@@ -3,29 +3,35 @@
 import serial
 import time
 
-ser = serial.Serial('/dev/ttyUSB0', 10400)
-#ser = serial.Serial('/dev/ttyS0', 4800)
+#ser = serial.Serial('/dev/ttyUSB0', 10400)
+ser = serial.Serial('/dev/ttyUSB0', 9600)
 
-deviceId = 0x02
+deviceId = 0x01
 
 def main():
 	getErrorCodes()
 #	clearErrorCodes()
 #	getErrorCodes()
 	readGroup(0)
-	readGroup(1)
-	readGroup(2)
-	readGroup(3)
-	readGroup(4)
-	readGroup(5)
-	lT = time.time()
-	while True:
-		readGroup(1)
+#	readGroup(1)
+#	readGroup(2)
+#	readGroup(3)
+#	readGroup(4)
+#	readGroup(5)
+#	lT = time.time()
+#	while True:
+#		readGroup(1)
 #		ct = time.time()
 #		print ct-lT
 #		lT = ct
-#	for i in range(256):
-#		readGroup(i)
+	for i in range(190,199):
+		readGroup(i)
+	lT = time.time()
+	while True:
+		getGrpBasicSettings()
+		ct = time.time()
+#		print ct-lT
+		lT = ct
 
 blockCounter = 0
 ecuString = ""
@@ -130,6 +136,37 @@ def recvBlock():
 #			print("%d: [%d, %d]\t" % (readingType, readingValA, readingValB))
 			print("  %s" % readingGetString(readingType, readingValA, readingValB)),
 		print
+	
+	if(blockTitle == 0xF4):
+		hexStr = ""
+		for n in range(len(data)):
+			hexStr += " %02x\t" % (data[n])
+		print hexStr
+		if lastGrp == -2: #Basic Settings 000
+			print "RPM\tSOI\t% GAS\tIQ\tP BOOST\tP ATM\tColTmp\tIAT\tFuelTmp\tLuft/Hub"
+		
+		if lastGrp == 190:
+			print "Load\tColTmp\tP BOOST\tMIL\tMIL\tMIL\tMIL\tWSZ H L\tWSZ H H\tLuft/Hub"
+		if lastGrp == 191:
+			print "AGR%\tMIL\tMIL\tMIL\tMIL\tMIL\tMIL\tMIL\tMIL\tAGR%"
+		if lastGrp == 192:
+			print "LDR%\tMIL\tMIL\tMIL\tMIL\tMIL\tMIL\tMIL\tMIL\tLDR%"
+		if lastGrp == 193:
+			print "AGR2%\tMIL\tMIL\tMIL\tMIL\tMIL\tMIL\tMIL\tMIL\tAGR2%"
+		if lastGrp == 194:
+			print "Gluehrelais%\tMIL\tMIL\tMIL\tMIL\tMIL\tMIL\tMIL\tMIL\tGluehrelais%"
+		if lastGrp == 195:
+			print "AGR3%\tMIL\tMIL\tMIL\tMIL\tMIL\tMIL\tMIL\tMIL\tAGR3%"
+		if lastGrp == 196:
+			print "TAV%\tMIL\tMIL\tMIL\tMIL\tMIL\tMIL\tMIL\tMIL\tTAV%"
+		if lastGrp == 197:
+			print "FZW%\tMIL\tMIL\tMIL\tMIL\tMIL\tMIL\tMIL\tMIL\tFZW%"
+		if lastGrp == 198:
+			print "FKLI0%\tMIL\tMIL\tMIL\tMIL\tMIL\tMIL\tMIL\tMIL\tFKLI0%"
+		if lastGrp == 199:
+			print "???\tMIL\tMIL\tMIL\tMIL\tMIL\tMIL\tMIL\tMIL\t???"
+
+		
 	if(blockTitle == 0xF6):
 		global ecuString
 #		print "Type: ASCII"
@@ -207,28 +244,41 @@ def readGroup(grp):
 #	print(hex(bt))
 #	sendBlockAck()
 
+def getGrpBasicSettings():
+	global lastGrp
+	if lastGrp != -2:
+		print("Reading Basic Values")
+	sendBlock(0x12)
+	lastGrp = -2
+	bt = recvBlock()
+	
+
 def initDevice():
 	syncVal = serGetByte() #55
 	if(syncVal != 0x55):
 		print("syncVal: %x" % syncVal)
-		return
-	serGetByte() #01
-	serGetByte() #8A
+		if(syncVal == 0xb5 or syncVal == 0x95 or syncVal == 0xd5): #10400 -> 9600
+			ser.baudrate = 9600
+		else:
+			return False
+	print("%02x" % serGetByte()) #01
+	print("%02x" % serGetByte()) #8A
 	serSendByte(0x75)
 	while True:
 		bT = recvBlock()
 		if bT == 0x09:
 			break
 		sendBlockAck()
+	return True
 
-		
+#while True:
 init5baud(deviceId)
 ser.timeout = 0
 ser.read(100)
 ser.timeout = 1
-initDevice()
-main()
-sendBlockEnd()
+if initDevice():
+	main()
+	sendBlockEnd()
 
 ser.close()
 
